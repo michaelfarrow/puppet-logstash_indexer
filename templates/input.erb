@@ -1,0 +1,7 @@
+input {
+	redis {
+		host => "<%= @broker_host %>"
+		key => "logstash:beaver"
+		data_type => "list"
+	}
+}
