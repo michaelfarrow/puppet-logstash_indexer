@@ -11,40 +11,67 @@ filter {
 		}
 	}
 
-	# if [type] == "apache-access" {
-	# 	grok {
-	# 		match => {
-	# 			"message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"
-	# 		}
-	# 	}
-	# 	date {
-	# 		match => [ "syslog_timestamp", "MMM  d HH:mm:ss", "MMM dd HH:mm:ss" ]
-	# 	}
-	# }
+	if [type] == "collectd" {
 
-	# CPU
-	# Need to increment core value
-	PUTVAL %{HOSTNAME:hostname}/cpu-%{INT:core}/cpu-%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:jiffies}
+		grok {
+			match => {
+				"message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"
+			}
+		}
 
-	# DF
-	# Need to convert bytes to MB and replace '-' in partition
-	PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:bytes}
+		# CPU
+		# Need to increment core value
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/cpu-%{INT:core}/cpu-%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:jiffies}"
+			}
+		}
 
-	# Memory
-	# Need to convert bytes to MB
-	PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:bytes}
+		# DF
+		# Need to convert bytes to MB and replace '-' in partition
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:bytes}"
+			}
+		}
 
-	# Disk
-	# Need to convert bytes to MB (Only for Octets)
-	# Need to convert ms to s (Only for Time)
-	PUTVAL %{HOSTNAME:hostname}/disk-%{DATA:partition}/disk_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:read}:%{NUMBER:write}
+		# Memory
+		# Need to convert bytes to MB
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:bytes}"
+			}
+		}
 
-	# Interface
-	# traffic is in octets/s
-	# packets in packets/s
-	PUTVAL %{HOSTNAME:hostname}/interface-%{DATA:interface}/if_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:rx}:%{NUMBER:tx}
+		# Disk
+		# Need to convert bytes to MB (Only for Octets)
+		# Need to convert ms to s (Only for Time)
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/disk-%{DATA:partition}/disk_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:read}:%{NUMBER:write}"
+			}
+		}
 
-	# Load
-	PUTVAL %{HOSTNAME:hostname}/load/load interval=%{NUMBER:interval} %{NUMBER:timestamp}:%{NUMBER:average_15m}:%{NUMBER:average_5m}:%{NUMBER:average_1m}
+		# Interface
+		# traffic is in octets/s
+		# packets in packets/s
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/interface-%{DATA:interface}/if_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:rx}:%{NUMBER:tx}"
+			}
+		}
+
+		# Load
+		grok {
+			match => {
+				"message" => "PUTVAL %{HOSTNAME:hostname}/load/load interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:average_15m}:%{NUMBER:average_5m}:%{NUMBER:average_1m}"
+			}
+		}
+
+		date {
+			match => [ "collectd_timestamp", "UNIX_MS" ]
+		}
+
+	}
 
 }

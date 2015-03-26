@@ -1,6 +1,6 @@
 class logstash_indexer {
 
-	$broker_host = hiera('logstash_indexer::broker_host', 'localhost')
+	$broker_host = hiera('log::broker', 'localhost')
 	$elasticsearch_host = hiera('elasticsearch::host', 'localhost')
 
 	class { 'logstash':
