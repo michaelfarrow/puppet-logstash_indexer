@@ -44,6 +44,10 @@ filter {
 					event['df_kbytes'] = event['df_bytes'] / 1024
 					event['df_mbytes'] = event['df_bytes'] / 1024 / 1024
 					event['df_gbytes'] = event['df_bytes'] / 1024 / 1024 / 1024
+
+					if event['df_type'] == 'complex'
+						event.cancel
+					end
 				end
 
 				if event['interface_rx']
