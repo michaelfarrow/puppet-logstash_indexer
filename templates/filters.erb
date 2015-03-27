@@ -3,11 +3,17 @@ filter {
 	if [type] == "auth" or [type] == "syslog" {
 		grok {
 			match => {
-				"message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"
+				"message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_host} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"
 			}
 		}
 		date {
 			match => [ "syslog_timestamp", "MMM  d HH:mm:ss", "MMM dd HH:mm:ss" ]
+		}
+		mutate {
+			remove_field => [
+				"syslog_timestamp"
+			]
+			rename => [ "syslog_host", "host" ]
 		}
 	}
 
@@ -15,61 +21,114 @@ filter {
 
 		grok {
 			match => {
-				"message" => "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"
-			}
-		}
-
-		# CPU
-		# Need to increment core value
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/cpu-%{INT:core}/cpu-%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:jiffies}"
-			}
-		}
-
-		# DF
-		# Need to convert bytes to MB and replace '-' in partition
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:bytes}"
-			}
-		}
-
-		# Memory
-		# Need to convert bytes to MB
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/df-%{DATA:partition}/df_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:bytes}"
-			}
-		}
-
-		# Disk
-		# Need to convert bytes to MB (Only for Octets)
-		# Need to convert ms to s (Only for Time)
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/disk-%{DATA:partition}/disk_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:read}:%{NUMBER:write}"
-			}
-		}
-
-		# Interface
-		# traffic is in octets/s
-		# packets in packets/s
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/interface-%{DATA:interface}/if_%{DATA:type} interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:rx}:%{NUMBER:tx}"
-			}
-		}
-
-		# Load
-		grok {
-			match => {
-				"message" => "PUTVAL %{HOSTNAME:hostname}/load/load interval=%{NUMBER:interval} %{NUMBER:collectd_timestamp}:%{NUMBER:average_15m}:%{NUMBER:average_5m}:%{NUMBER:average_1m}"
+				"message" => [
+					"PUTVAL %{HOSTNAME:collectd_host}/cpu-%{INT:cpu_core:int}/cpu-%{DATA:cpu_type} interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:cpu_jiffies:int}",
+					"PUTVAL %{HOSTNAME:collectd_host}/df-%{DATA:df_partition}/df_%{DATA:df_type} interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:df_bytes:float}",
+					"PUTVAL %{HOSTNAME:collectd_host}/disk-%{DATA:disk_partition}/disk_%{DATA:disk_type} interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:disk_read:float}:%{NUMBER:disk_write:float}",
+					"PUTVAL %{HOSTNAME:collectd_host}/interface-%{DATA:interface_name}/if_%{DATA:interface_type} interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:interface_rx:float}:%{NUMBER:interface_tx:float}",
+					"PUTVAL %{HOSTNAME:collectd_host}/load/load interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:average_15m:float}:%{NUMBER:average_5m:float}:%{NUMBER:average_1m:float}",
+					"PUTVAL %{HOSTNAME:collectd_host}/memory/memory-%{DATA:memory_type} interval=%{NUMBER:interval:float} %{NUMBER:collectd_timestamp}:%{NUMBER:memory_bytes:float}"
+				]
 			}
 		}
 
 		date {
-			match => [ "collectd_timestamp", "UNIX_MS" ]
+			match => [ "collectd_timestamp", "UNIX" ]
+		}
+
+		ruby {
+			code => "
+				event['cpu_core'] += 1 if event['cpu_core']
+
+				if event['df_bytes']
+					event['df_kbytes'] = event['df_bytes'] / 1024
+					event['df_mbytes'] = event['df_bytes'] / 1024 / 1024
+					event['df_gbytes'] = event['df_bytes'] / 1024 / 1024 / 1024
+				end
+
+				if event['interface_rx']
+
+					if event['interface_type'] == 'octets'
+
+						event['interface_rx_bytes_s'] = event['interface_rx'] / event['interval']
+						event['interface_rx_kbytes_s'] = event['interface_rx'] / event['interval'] / 1024
+						event['interface_rx_mbytes_s'] = event['interface_rx'] / event['interval'] / 1024 / 1024
+						event['interface_rx_gbytes_s'] = event['interface_rx'] / event['interval'] / 1024 / 1024 / 1024
+
+						event['interface_tx_bytes_s'] = event['interface_tx'] / event['interval']
+						event['interface_tx_kbytes_s'] = event['interface_tx'] / event['interval'] / 1024
+						event['interface_tx_mbytes_s'] = event['interface_tx'] / event['interval'] / 1024 / 1024
+						event['interface_tx_gbytes_s'] = event['interface_tx'] / event['interval'] / 1024 / 1024
+
+					end
+
+					if event['interface_type'] == 'packets'
+						event['interface_rx_packets_s'] = event['interface_rx'] / event['interval']
+						event['interface_tx_packets_s'] = event['interface_tx'] / event['interval']
+					end
+
+					if event['interface_type'] == 'errors'
+						event['interface_rx_errors_s'] = event['interface_rx'] / event['interval']
+						event['interface_tx_errors_s'] = event['interface_tx'] / event['interval']
+					end
+
+				end
+
+				if event['disk_read'] and event['disk_write']
+
+					if event['disk_type'] == 'octets'
+
+						event['disk_read_bytes_s'] = event['disk_read'] / event['interval']
+						event['disk_read_kbytes_s'] = event['disk_read'] / event['interval'] / 1024
+						event['disk_read_mbytes_s'] = event['disk_read'] / event['interval'] / 1024 / 1024
+						event['disk_read_gbytes_s'] = event['disk_read'] / event['interval'] / 1024 / 1024 / 1024
+
+						event['disk_write_bytes_s'] = event['disk_write'] / event['interval']
+						event['disk_write_kbytes_s'] = event['disk_write'] / event['interval'] / 1024
+						event['disk_write_mbytes_s'] = event['disk_write'] / event['interval'] / 1024 / 1024
+						event['disk_write_gbytes_s'] = event['disk_write'] / event['interval'] / 1024 / 1024 / 1024
+
+					end
+
+					if event['disk_type'] == 'time'
+
+						event['disk_read_us_s'] = event['disk_read'] / event['interval']
+						event['disk_read_ms_s'] = event['disk_read'] / event['interval'] / 1000
+						event['disk_read_s_s'] = event['disk_read'] / event['interval'] / 1000 / 1000
+
+						event['disk_write_us_s'] = event['disk_write'] / event['interval']
+						event['disk_write_ms_s'] = event['disk_write'] / event['interval'] / 1000
+						event['disk_write_s_s'] = event['disk_write'] / event['interval'] / 1000 / 1000
+
+					end
+
+					if event['disk_type'] == 'merged'
+						event['disk_read_merged_s'] = event['disk_read'] / event['interval']
+						event['disk_write_merged_s'] = event['disk_write'] / event['interval']
+					end
+
+					if event['disk_type'] == 'ops'
+						event['disk_read_ops_s'] = event['disk_read'] / event['interval']
+						event['disk_write_ops_s'] = event['disk_write'] / event['interval']
+					end
+
+				end
+
+				if event['memory_bytes']
+					event['memory_kbytes'] = event['memory_bytes'] / 1024
+					event['memory_mbytes'] = event['memory_bytes'] / 1024 / 1024
+					event['memory_gbytes'] = event['memory_bytes'] / 1024 / 1024 / 1024
+				end
+			"
+		}
+
+		mutate {
+			remove_field => [
+				"collectd_timestamp",
+				"interval",
+				"path"
+			]
+			rename => [ "collectd_host", "host" ]
 		}
 
 	}
