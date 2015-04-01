@@ -7,6 +7,7 @@ class logstash_indexer {
 		# version => '1.4.2',
 		install_contrib => true,
 		manage_repo => true,
+		repo_version => '1.4',
 	}
 
 	logstash::configfile { 'logstash_input':
