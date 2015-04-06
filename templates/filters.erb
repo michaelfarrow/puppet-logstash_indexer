@@ -38,6 +38,10 @@ filter {
 
 		ruby {
 			code => "
+				counter_loc = '/tmp/logstash_counters/'
+
+				system 'mkdir', '-p', counter_loc
+
 				event['cpu_core'] += 1 if event['cpu_core']
 
 				if event['df_bytes']
@@ -54,15 +58,21 @@ filter {
 
 					if event['interface_type'] == 'octets'
 
-						event['interface_rx_bytes_s'] = event['interface_rx'] / event['interval']
-						event['interface_rx_kbytes_s'] = event['interface_rx'] / event['interval'] / 1024
-						event['interface_rx_mbytes_s'] = event['interface_rx'] / event['interval'] / 1024 / 1024
-						event['interface_rx_gbytes_s'] = event['interface_rx'] / event['interval'] / 1024 / 1024 / 1024
+						rx_file = counter_loc + event['collectd_host'] + ':rx'
+            tx_file = counter_loc + event['collectd_host'] + ':tx'
 
-						event['interface_tx_bytes_s'] = event['interface_tx'] / event['interval']
-						event['interface_tx_kbytes_s'] = event['interface_tx'] / event['interval'] / 1024
-						event['interface_tx_mbytes_s'] = event['interface_tx'] / event['interval'] / 1024 / 1024
-						event['interface_tx_gbytes_s'] = event['interface_tx'] / event['interval'] / 1024 / 1024
+            stored_rx = File.file?(rx_file) ? File.read(rx_file).to_i : 0
+            stored_tx = File.file?(tx_file) ? File.read(tx_file).to_i : 0
+
+            diff_rx = event['interface_rx'] - stored_rx
+            diff_tx = event['interface_tx'] - stored_tx
+
+            File.open(rx_file, 'w') { |file| file.write(event['interface_rx']) }
+            File.open(tx_file, 'w') { |file| file.write(event['interface_rx']) }
+
+						event['interface_rx_bytes_s'] = diff_rx/ event['interval']
+
+						event['interface_tx_bytes_s'] = diff_tx / event['interval']
 
 					end
 
