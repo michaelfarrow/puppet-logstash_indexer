@@ -61,14 +61,14 @@ filter {
 						rx_file = counter_loc + event['collectd_host'] + ':rx'
             tx_file = counter_loc + event['collectd_host'] + ':tx'
 
-            stored_rx = File.file?(rx_file) ? File.read(rx_file).to_i : 0
-            stored_tx = File.file?(tx_file) ? File.read(tx_file).to_i : 0
+            stored_rx = File.file?(rx_file) ? File.read(rx_file).to_i : event['interface_rx']
+            stored_tx = File.file?(tx_file) ? File.read(tx_file).to_i : event['interface_tx']
 
             diff_rx = event['interface_rx'] - stored_rx
             diff_tx = event['interface_tx'] - stored_tx
 
             File.open(rx_file, 'w') { |file| file.write(event['interface_rx']) }
-            File.open(tx_file, 'w') { |file| file.write(event['interface_rx']) }
+            File.open(tx_file, 'w') { |file| file.write(event['interface_tx']) }
 
 						event['interface_rx_bytes_s'] = diff_rx/ event['interval']
 
