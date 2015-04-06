@@ -46,7 +46,7 @@ filter {
 
 				if event['cpu_jiffies']
 
-					jiffies_file = counter_loc + event['collectd_host'] + ':jiffies:' + event['cpu_type'] + ':' + event['cpu_core'] 
+					jiffies_file = counter_loc + event['collectd_host'] + ':jiffies:' + event['cpu_type'] + ':' + event['cpu_core'].to_s
 
 					stored_jiffies = File.file?(jiffies_file) ? File.read(jiffies_file).to_i : event['cpu_jiffies']
 
