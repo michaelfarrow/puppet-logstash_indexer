@@ -48,11 +48,11 @@ filter {
 
 					jiffies_file = counter_loc + event['collectd_host'] + ':jiffies:' + event['cpu_type'] + ':' + event['cpu_core'] 
 
-          stored_jiffies = File.file?(jiffies_file) ? File.read(jiffies_file).to_i : event['cpu_jiffies']
+					stored_jiffies = File.file?(jiffies_file) ? File.read(jiffies_file).to_i : event['cpu_jiffies']
 
-          diff_jiffies = event['cpu_jiffies'] - stored_jiffies
+					diff_jiffies = event['cpu_jiffies'] - stored_jiffies
 
-          File.open(jiffies_file, 'w') { |file| file.write(event['cpu_jiffies']) }
+					File.open(jiffies_file, 'w') { |file| file.write(event['cpu_jiffies']) }
 
 					event['cpu_jiffies'] = diff_jiffies / event['interval']
 
