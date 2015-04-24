@@ -38,7 +38,7 @@ filter {
 
 		ruby {
 			code => "
-				counter_loc = '/tmp/logstash_counters/'
+				counter_loc = '/etc/logstash/counters/'
 
 				system 'mkdir', '-p', counter_loc
 
@@ -51,6 +51,10 @@ filter {
 					stored_jiffies = File.file?(jiffies_file) ? File.read(jiffies_file).to_i : event['cpu_jiffies']
 
 					diff_jiffies = event['cpu_jiffies'] - stored_jiffies
+
+					if diff_jiffies < 0
+						diff_jiffies = 0
+					end
 
 					File.open(jiffies_file, 'w') { |file| file.write(event['cpu_jiffies']) }
 
@@ -80,6 +84,14 @@ filter {
 
 						diff_rx = event['interface_rx'] - stored_rx
 						diff_tx = event['interface_tx'] - stored_tx
+
+						if diff_rx < 0
+							diff_rx = 0
+						end
+
+						if diff_tx < 0
+							diff_tx = 0
+						end
 
 						File.open(rx_file, 'w') { |file| file.write(event['interface_rx']) }
 						File.open(tx_file, 'w') { |file| file.write(event['interface_tx']) }
